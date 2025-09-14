@@ -7,6 +7,10 @@ router.get('/fiestas', EventsController.getFiestas);
 
 router.get('/festivales', EventsController.getFestivales);
 
+router.get('/espectaculos', EventsController.getEspectaculos);
+
+router.get('/exposiciones', EventsController.getExposiciones);
+
 router.get('/all', EventsController.getAllEvents);
 
 router.get('/:type', EventsController.getEventsByType);

@@ -109,22 +109,34 @@ export class ScraperService {
     return this.scrapeEvents('Festivales');
   }
 
+  static async scrapeEspectaculos(): Promise<ScraperResponse> {
+    return this.scrapeEvents('Espectáculos');
+  }
+
+  static async scrapeExposiciones(): Promise<ScraperResponse> {
+    return this.scrapeEvents('Exposiciones');
+  }
+
   static async scrapeAllEvents(): Promise<ScraperResponse> {
     try {
-      const [fiestasResponse, festivalesResponse] = await Promise.all([
+      const [fiestasResponse, festivalesResponse, espectaculosResponse, exposicionesResponse] = await Promise.all([
         this.scrapeFiestas(),
-        this.scrapeFestivales()
+        this.scrapeFestivales(),
+        this.scrapeEspectaculos(),
+        this.scrapeExposiciones()
       ]);
 
       const allEvents = [
         ...fiestasResponse.data,
-        ...festivalesResponse.data
+        ...festivalesResponse.data,
+        ...espectaculosResponse.data,
+        ...exposicionesResponse.data
       ];
 
       return {
         success: true,
         data: allEvents,
-        message: `Successfully scraped ${allEvents.length} total events`
+        message: `Successfully scraped ${allEvents.length} total events (${fiestasResponse.data.length} fiestas, ${festivalesResponse.data.length} festivales, ${espectaculosResponse.data.length} espectáculos, ${exposicionesResponse.data.length} exposiciones)`
       };
     } catch (error) {
       return {

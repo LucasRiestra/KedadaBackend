@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const EventTypeSchema = z.enum(['Fiestas', 'Festivales']);
+export const EventTypeSchema = z.enum(['Fiestas', 'Festivales', 'Espectáculos', 'Exposiciones']);
 
 export const ScrapedEventSchema = z.object({
   title: z.string().nullable().optional(),

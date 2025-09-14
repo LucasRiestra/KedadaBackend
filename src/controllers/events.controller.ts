@@ -37,6 +37,40 @@ export class EventsController {
     }
   }
 
+  static async getEspectaculos(req: Request, res: Response) {
+    try {
+      const result = await ScraperService.scrapeEspectaculos();
+
+      const validatedResult = ScraperResponseSchema.parse(result);
+
+      return res.status(200).json(validatedResult);
+    } catch (error) {
+      console.error('Error in getEspectaculos:', error);
+      return res.status(500).json({
+        success: false,
+        data: [],
+        error: 'Internal server error while scraping espectáculos'
+      });
+    }
+  }
+
+  static async getExposiciones(req: Request, res: Response) {
+    try {
+      const result = await ScraperService.scrapeExposiciones();
+
+      const validatedResult = ScraperResponseSchema.parse(result);
+
+      return res.status(200).json(validatedResult);
+    } catch (error) {
+      console.error('Error in getExposiciones:', error);
+      return res.status(500).json({
+        success: false,
+        data: [],
+        error: 'Internal server error while scraping exposiciones'
+      });
+    }
+  }
+
   static async getAllEvents(req: Request, res: Response) {
     try {
       const result = await ScraperService.scrapeAllEvents();
@@ -58,11 +92,11 @@ export class EventsController {
     try {
       const { type } = req.params;
 
-      if (type !== 'Fiestas' && type !== 'Festivales') {
+      if (type !== 'Fiestas' && type !== 'Festivales' && type !== 'Espectáculos' && type !== 'Exposiciones') {
         return res.status(400).json({
           success: false,
           data: [],
-          error: 'Invalid event type. Must be "Fiestas" or "Festivales"'
+          error: 'Invalid event type. Must be "Fiestas", "Festivales", "Espectáculos", or "Exposiciones"'
         });
       }
 
