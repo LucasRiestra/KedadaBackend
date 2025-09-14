@@ -1,22 +1,66 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 import * as cheerio from 'cheerio';
 import { ScrapedEvent, EventType, ScraperResponse } from '../models/event.model';
 
 export class ScraperService {
   private static readonly BASE_URL = 'https://www.dipalme.org/Servicios/cmsdipro/index.nsf/fiestas_view_actividad.xsp';
+  private static readonly MAX_RETRIES = 3;
+  private static readonly INITIAL_DELAY = 2000; // 2 seconds
+  private static readonly REQUEST_DELAY = 3000; // 3 seconds between requests
+
+  private static readonly USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0'
+  ];
+
+  private static getRandomUserAgent(): string {
+    return this.USER_AGENTS[Math.floor(Math.random() * this.USER_AGENTS.length)];
+  }
+
+  private static async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private static async makeRequestWithRetry(url: string, attempt = 1): Promise<string> {
+    const config: AxiosRequestConfig = {
+      headers: {
+        'User-Agent': this.getRandomUserAgent(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      },
+      timeout: 30000, // 30 seconds
+      maxRedirects: 5
+    };
+
+    try {
+      const response = await axios.get(url, config);
+      return response.data;
+    } catch (error) {
+      if (attempt >= this.MAX_RETRIES) {
+        throw error;
+      }
+
+      const delay = this.INITIAL_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
+      console.log(`Request failed, retrying in ${delay}ms... (attempt ${attempt}/${this.MAX_RETRIES})`);
+
+      await this.delay(delay);
+      return this.makeRequestWithRetry(url, attempt + 1);
+    }
+  }
 
   static async scrapeEvents(eventType: EventType): Promise<ScraperResponse> {
     try {
       const url = `${this.BASE_URL}?p=dipalme&actividad=${eventType}`;
 
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        },
-        timeout: 10000
-      });
+      console.log(`Starting scraping for ${eventType}...`);
+      const data = await this.makeRequestWithRetry(url);
 
-      const $ = cheerio.load(response.data);
+      const $ = cheerio.load(data);
       const events: ScrapedEvent[] = [];
 
       $('.date-eventos').each((index, element) => {
@@ -111,10 +155,17 @@ export class ScraperService {
 
   static async scrapeAllEvents(): Promise<ScraperResponse> {
     try {
-      const [fiestasResponse, festivalesResponse] = await Promise.all([
-        this.scrapeFiestas(),
-        this.scrapeFestivales()
-      ]);
+      console.log('Starting sequential scraping to avoid rate limiting...');
+
+      // Sequential requests instead of parallel to avoid rate limiting
+      const fiestasResponse = await this.scrapeFiestas();
+      console.log(`Fiestas completed: ${fiestasResponse.data.length} events found`);
+
+      // Add delay between requests
+      await this.delay(this.REQUEST_DELAY);
+
+      const festivalesResponse = await this.scrapeFestivales();
+      console.log(`Festivales completed: ${festivalesResponse.data.length} events found`);
 
       const allEvents = [
         ...fiestasResponse.data,
@@ -127,6 +178,7 @@ export class ScraperService {
         message: `Successfully scraped ${allEvents.length} total events`
       };
     } catch (error) {
+      console.error('Error in scrapeAllEvents:', error);
       return {
         success: false,
         data: [],
